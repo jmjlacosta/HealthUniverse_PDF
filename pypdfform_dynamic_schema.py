@@ -28,17 +28,20 @@ with open(SCHEMA_PATH) as f:
 form_args = {}
 field_name_map = {}
 
+bool_field_names = set()
+
 for field_name, meta in schema.items(): # TODO handle duplicate or conflicting names as well as clean names?
     safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', field_name.lower()).lstrip('_')
     if not safe_name or safe_name[0].isdigit():
         safe_name = f"field_{safe_name}"
     field_name_map[safe_name] = field_name
-    field_type = str
-    if meta.get("type") == "boolean":
-        field_type = Literal["True", "False"]
+    is_boolean = meta.get("type") == "boolean"
+    field_type = Literal["True", "False"] if is_boolean else str
+    if is_boolean:
+        bool_field_names.add(safe_name)
     elif meta.get("type") == "integer":
         field_type = int
-    default_val = False if field_type is bool else None
+    default_val = "False" if is_boolean else None
     form_args[safe_name] = (Optional[field_type], Form(default_val, description=field_name))
 
 # build function so it thinks its static
@@ -47,7 +50,7 @@ def create_fill_pdf_view():
         file_id = str(uuid.uuid4())
         output_path = OUTPUT_DIR / f"filled_{file_id}.pdf"
         original_data = {
-            field_name_map.get(k, k): (v == "True" if isinstance(v, str) and k in form_args and form_args[k][0] == Literal["True", "False"] else v)
+            field_name_map.get(k, k): (v == "True" if k in bool_field_names else v)
             for k, v in kwargs.items()
         }
         filled_pdf = FormWrapper(str(PDF_PATH)).fill(original_data, flatten=False)
