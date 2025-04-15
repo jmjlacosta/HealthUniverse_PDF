@@ -35,7 +35,8 @@ for field_name, meta in schema.items():
         field_type = bool
     elif meta.get("type") == "integer":
         field_type = int
-    form_args[safe_name] = (field_type, Form(..., description=field_name))
+    from typing import Optional
+    form_args[safe_name] = (Optional[field_type], Form(None, description=field_name))
 
 # Create function signature dynamically
 def create_fill_pdf_view():
