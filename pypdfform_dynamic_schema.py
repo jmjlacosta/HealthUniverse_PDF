@@ -1,15 +1,19 @@
 from fastapi import FastAPI, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from PyPDFForm import PdfWrapper, FormWrapper
 from pathlib import Path
 import re
 import json
 import inspect
+import uuid
+from typing import Optional
 
 app = FastAPI()
 
 PDF_PATH = Path("data/sample.pdf")
 SCHEMA_PATH = Path("data/form_schema.json")
+OUTPUT_DIR = Path("data/filled")
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 # hgenerate and save schema
 if not SCHEMA_PATH.exists():
@@ -34,18 +38,18 @@ for field_name, meta in schema.items(): # TODO handle duplicate or conflicting n
         field_type = bool
     elif meta.get("type") == "integer":
         field_type = int
-    from typing import Optional
     form_args[safe_name] = (Optional[field_type], Form(None, description=field_name))
 
 # build function so it thinks its static
 def create_fill_pdf_view():
     async def fill_pdf_func(**kwargs):
-        output_path = Path("data/filled_sample.pdf")
+        file_id = str(uuid.uuid4())
+        output_path = OUTPUT_DIR / f"{file_id}.pdf"
         original_data = {field_name_map.get(k, k): v for k, v in kwargs.items()}
         filled_pdf = FormWrapper(str(PDF_PATH)).fill(original_data, flatten=False)
         with open(output_path, "wb") as f:
             f.write(filled_pdf.read())
-        return FileResponse(output_path, filename=output_path.name, media_type="application/pdf")
+        return JSONResponse(content={"file_url": f"/download-pdf/{file_id}"})
 
     sig = inspect.signature(fill_pdf_func)
     new_params = [
@@ -56,4 +60,9 @@ def create_fill_pdf_view():
     fill_pdf_func.__signature__ = sig.replace(parameters=new_params)
     return fill_pdf_func
 
-app.post("/fill-pdf", response_class=FileResponse)(create_fill_pdf_view())
+@app.get("/download-pdf/{file_id}", response_class=FileResponse)
+async def download_filled_pdf(file_id: str):
+    file_path = OUTPUT_DIR / f"{file_id}.pdf"
+    return FileResponse(file_path, filename=f"filled_form_{file_id}.pdf", media_type="application/pdf")
+
+app.post("/fill-pdf")(create_fill_pdf_view())
