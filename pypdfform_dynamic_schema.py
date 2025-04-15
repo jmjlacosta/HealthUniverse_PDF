@@ -6,7 +6,7 @@ import re
 import json
 import inspect
 import uuid
-from typing import Optional
+from typing import Optional, Literal
 
 app = FastAPI()
 
@@ -35,7 +35,7 @@ for field_name, meta in schema.items(): # TODO handle duplicate or conflicting n
     field_name_map[safe_name] = field_name
     field_type = str
     if meta.get("type") == "boolean":
-        field_type = bool
+        field_type = Literal["True", "False"]
     elif meta.get("type") == "integer":
         field_type = int
     default_val = False if field_type is bool else None
@@ -46,7 +46,10 @@ def create_fill_pdf_view():
     async def fill_pdf_func(**kwargs):
         file_id = str(uuid.uuid4())
         output_path = OUTPUT_DIR / f"filled_{file_id}.pdf"
-        original_data = {field_name_map.get(k, k): v for k, v in kwargs.items()}
+        original_data = {
+            field_name_map.get(k, k): (v == "True" if isinstance(v, str) and k in form_args and form_args[k][0] == Literal["True", "False"] else v)
+            for k, v in kwargs.items()
+        }
         filled_pdf = FormWrapper(str(PDF_PATH)).fill(original_data, flatten=False)
         with open(output_path, "wb") as f:
             f.write(filled_pdf.read())
