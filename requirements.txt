@@ -1,0 +1,10 @@
+# Core for both apps
+PyPDFForm==0.4.0
+
+# For the FastAPI version
+fastapi==0.110.0
+uvicorn==0.27.1
+pydantic==1.10.13
+
+# For the Streamlit version
+streamlit==1.33.0
