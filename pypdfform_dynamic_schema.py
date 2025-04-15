@@ -2,6 +2,7 @@ from fastapi import FastAPI, Form
 from fastapi.responses import FileResponse
 from PyPDFForm import PdfWrapper, FormWrapper
 from pathlib import Path
+import re
 import json
 import inspect
 
@@ -10,22 +11,20 @@ app = FastAPI()
 PDF_PATH = Path("data/sample.pdf")
 SCHEMA_PATH = Path("data/form_schema.json")
 
-# Generate and save schema if not present
+# hgenerate and save schema
 if not SCHEMA_PATH.exists():
     wrapper = PdfWrapper(str(PDF_PATH))
     with open(SCHEMA_PATH, "w") as f:
         json.dump(wrapper.schema, f)
 
-# Load schema
 with open(SCHEMA_PATH) as f:
     schema = json.load(f).get("properties", {})
 
-# Build dynamic form parameters
+# make dynamic form
 form_args = {}
 field_name_map = {}
-import re
 
-for field_name, meta in schema.items():
+for field_name, meta in schema.items(): # TODO handle duplicate or conflicting names as well as clean names?
     safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', field_name.lower()).lstrip('_')
     if not safe_name or safe_name[0].isdigit():
         safe_name = f"field_{safe_name}"
@@ -38,7 +37,7 @@ for field_name, meta in schema.items():
     from typing import Optional
     form_args[safe_name] = (Optional[field_type], Form(None, description=field_name))
 
-# Create function signature dynamically
+# build function so it thinks its static
 def create_fill_pdf_view():
     async def fill_pdf_func(**kwargs):
         output_path = Path("data/filled_sample.pdf")
